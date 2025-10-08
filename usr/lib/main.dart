@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 
 void main() {
   runApp(const MyApp());
@@ -7,114 +8,180 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Math Match',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        primarySwatch: Colors.blue,
+        visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const GameScreen(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+class CardItem {
+  String term;
+  String variablePart;
+  bool isFlipped;
+  bool isMatched;
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  CardItem({
+    required this.term,
+    required this.variablePart,
+    this.isFlipped = false,
+    this.isMatched = false,
+  });
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class GameScreen extends StatefulWidget {
+  const GameScreen({super.key});
 
-  void _incrementCounter() {
+  @override
+  State<GameScreen> createState() => _GameScreenState();
+}
+
+class _GameScreenState extends State<GameScreen> {
+  late List<CardItem> _cards;
+  CardItem? _firstFlippedCard;
+  bool _isChecking = false;
+  int _score = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupGame();
+  }
+
+  String _getVariablePart(String term) {
+    return term.replaceAll(RegExp(r'[^a-zA-Z]'), '');
+  }
+
+  void _setupGame() {
+    List<String> terms = ['5xy', '3x', '2xy', '-9x', '7ab', '-2ab', '4y', '8y'];
+    List<CardItem> cardItems = [];
+    for (var term in terms) {
+      cardItems.add(CardItem(
+        term: term,
+        variablePart: _getVariablePart(term),
+      ));
+    }
+    cardItems.shuffle();
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      _cards = cardItems;
+      _score = 0;
+      _firstFlippedCard = null;
+      _isChecking = false;
     });
+  }
+
+  void _onCardTapped(int index) {
+    if (_isChecking || _cards[index].isFlipped || _cards[index].isMatched) {
+      return;
+    }
+
+    setState(() {
+      _cards[index].isFlipped = true;
+    });
+
+    if (_firstFlippedCard == null) {
+      _firstFlippedCard = _cards[index];
+    } else {
+      _isChecking = true;
+      // Check for match
+      if (_firstFlippedCard!.variablePart == _cards[index].variablePart) {
+        // Match found
+        setState(() {
+          _firstFlippedCard!.isMatched = true;
+          _cards[index].isMatched = true;
+          _score += 10;
+        });
+        _firstFlippedCard = null;
+        _isChecking = false;
+        _checkForWin();
+      } else {
+        // No match
+        Timer(const Duration(milliseconds: 500), () {
+          setState(() {
+            _firstFlippedCard!.isFlipped = false;
+            _cards[index].isFlipped = false;
+            _firstFlippedCard = null;
+            _isChecking = false;
+          });
+        });
+      }
+    }
+  }
+
+  void _checkForWin() {
+    if (_cards.every((card) => card.isMatched)) {
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Chúc mừng!'),
+            content: Text('Bạn đã hoàn thành màn chơi với số điểm: $_score'),
+            actions: <Widget>[
+              TextButton(
+                child: const Text('Chơi lại'),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _setupGame();
+                },
+              ),
+            ],
+          );
+        },
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        title: const Text('Math Match - Đơn thức đồng dạng'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 20.0),
+            child: Center(child: Text('Điểm: $_score', style: const TextStyle(fontSize: 18))),
+          )
+        ],
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text('You have pushed the button this many times:'),
-            Text('$_counter', style: Theme.of(context).textTheme.headlineMedium),
-          ],
+      body: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: GridView.builder(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 4,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+          ),
+          itemCount: _cards.length,
+          itemBuilder: (context, index) {
+            return GestureDetector(
+              onTap: () => _onCardTapped(index),
+              child: Card(
+                color: _cards[index].isMatched
+                    ? Colors.green.withOpacity(0.5)
+                    : (_cards[index].isFlipped ? Colors.blue.shade100 : Colors.grey.shade300),
+                child: Center(
+                  child: _cards[index].isFlipped || _cards[index].isMatched
+                      ? Text(
+                          _cards[index].term,
+                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        )
+                      : const Text(
+                          '?',
+                          style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
+                        ),
+                ),
+              ),
+            );
+          },
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 }

@@ -1,6 +1,6 @@
-# couldai_user_app
+# Math Match
 
-A new Flutter project.
+A new Flutter project for a math learning game.
 
 ## Getting Started
 
